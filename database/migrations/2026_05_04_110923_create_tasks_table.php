@@ -15,7 +15,6 @@ return new class extends Migration
             $table->id();
             $table->string("title");
             $table->text("description")->nullable();
-            $table->string("status")->nullable();
 
             $table->foreignId('user_id')->constrained();
 
