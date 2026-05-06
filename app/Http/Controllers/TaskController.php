@@ -2,38 +2,57 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\TaskRequest;
+use App\Http\Requests\UpdateTaskRequest;
+use App\Http\Resources\TaskResource;
+use App\Repositories\Interfaces\TaskRepositoryInterface;
 use Illuminate\Http\Request;
 
 class TaskController extends Controller
 {
-    public function store(Request $request){
-        $request->validate([
-            'title' => 'required|string',
-            'description' => 'nullable|string'
-        ]);
+    public function __construct(
+        private TaskRepositoryInterface $tasksRepository
+    ) {
+    }
 
-        $task = $request->user()->tasks()->create([
-            'title' => $request->title,
-            'description' => $request->description
-        ]);
+    public function store(TaskRequest $request)
+    {
+
+        $validate = $request->validated();
+
+        $task = $this->tasksRepository->create(
+            $request->user()->id,
+            [
+                'title' => $request->title,
+                'description' => $request->description,
+            ]
+        );
 
         return response()->json([
             'status' => true,
-            'task' => $task
-        ]);
+            'data' => new TaskResource($task)
+        ],201);
     }
 
     public function index(Request $request)
     {
+        $tasks = $this->tasksRepository->FindAll($request->user()->id);
+
+        if(!$tasks){
+            return response()->json([
+                'status'=>false,
+                'message'=>'tasks not found'
+            ],404);
+        }
         return response()->json([
             'status' => true,
-            'tasks' => $request->user()->tasks
+            'tasks' => $tasks
         ]);
     }
 
     public function show($id, Request $request)
     {
-        $task = $request->user()->tasks()->find($id);
+        $task = $this->tasksRepository->FindById($request->user()->id, $id);
 
         if (!$task) {
             return response()->json([
@@ -44,18 +63,15 @@ class TaskController extends Controller
 
         return response()->json([
             'status' => true,
-            'task' => $task
+            'task' => new TaskResource($task)
         ]);
     }
 
-    public function update(Request $request, $id)
+    public function update(UpdateTaskRequest $request, $id)
     {
-        $request->validate([
-            'title' => 'sometimes|string',
-            'description' => 'sometimes|string'
-        ]);
+        $validate = $request->validated();
 
-        $task = $request->user()->tasks()->find($id);
+        $task = $this->tasksRepository->FindById($request->user()->id, $id);
 
         if (!$task) {
             return response()->json([
@@ -64,17 +80,21 @@ class TaskController extends Controller
             ], 404);
         }
 
-        $task->update($request->only(['title', 'description']));
+        $updatedTask = $this->tasksRepository->UpdateById(
+            $request->user()->id,
+            $request->only('title', 'description'),
+            $id
+        );
 
         return response()->json([
             'status' => true,
-            'task' => $task
+            'task' => new TaskResource($updatedTask)
         ]);
     }
 
     public function destroy($id, Request $request)
     {
-        $task = $request->user()->tasks()->find($id);
+        $task = $this->tasksRepository->FindById($request->user()->id, $id);
 
         if (!$task) {
             return response()->json([
@@ -83,7 +103,7 @@ class TaskController extends Controller
             ], 404);
         }
 
-        $task->delete();
+        $this->tasksRepository->DeleteById($request->user()->id, $id);
 
         return response()->json([
             'status' => true,
@@ -91,24 +111,29 @@ class TaskController extends Controller
         ]);
     }
 
-    public function markComplete($id,Request $request){
-        $task = $request->user()->tasks()->find($id);
+    public function markComplete($id, Request $request)
+    {
+        $task = $this->tasksRepository->FindById($request->user()->id, $id);
 
-        if(!$task){
+        if (!$task) {
             return response()->json([
-                'status'=>false,
+                'status' => false,
                 'message' => 'Task Not found'
-            ],404);
+            ], 404);
         }
 
-        $task->update([
-            'status' => 'compeleted'
-        ]);
+        $updatedTask = $this->tasksRepository->UpdateById(
+            $request->user()->id,
+            [
+                'status' => 'compeleted'
+            ],
+            $id
+        );
 
         return response()->json([
             'status' => true,
             'message' => 'Task marked as completed',
-            'task' => $task
+            'task' => new TaskResource($updatedTask)
         ]);
 
     }

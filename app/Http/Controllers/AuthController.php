@@ -2,63 +2,41 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterRequest;
+use App\Http\Resources\UserResource;
+use App\Jobs\SendEmail;
 use App\Models\User;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 
-class AuthController extends Controller
-{
-    public function register(Request $request)
-    {
-        $validateUser = Validator::make($request->all(),
-        [
-            'name' => 'required',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:8'
-        ]);
+class AuthController extends  Controller{
 
-        if($validateUser->fails()){
-            return response()->json([
-                'status' => false,
-                'message' => 'validation error',
-                'errors' => $validateUser->errors()
-            ], 401);
-        }
+    public function register(RegisterRequest $request){
+        $validate = $request->validated();
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password)
         ]);
+        $user->assignRole('user');
+
+        SendEmail::dispatch($user);
 
         return response()->json([
-            'status' => true,
-            'message' => 'User Created Successfully',
-            'token' => $user->createToken("API TOKEN")->plainTextToken
-        ], 200);
+            'status'=>'success',
+            'data'=> new UserResource($user),
+        ],200);
 
     }
 
-    public function login(Request $request)
-    {
-        $validateUser = Validator::make($request->all(),
-        [
-            'email' => 'required|email',
-            'password' => 'required'
-        ]);
+    public function login(LoginRequest $request){
 
-        if($validateUser->fails()){
-            return response()->json([
-                'status' => false,
-                'message' => 'validation error',
-                'errors' => $validateUser->errors()
-            ], 401);
-        }
+        $validate = $request->validated();
+
         $creds = $request->only('email','password');
-
         if(!Auth::attempt($creds)){
             return response()->json([
                 'message'=>'Invalid creds'
@@ -69,8 +47,7 @@ class AuthController extends Controller
 
         return response()->json([
             'status' => true,
-            'message' => 'Login successful',
-            'token' => $user->createToken('API TOKEN')->plainTextToken
+            'data'=> new UserResource($user),
         ]);
     }
     public function Logout(Request $request){
