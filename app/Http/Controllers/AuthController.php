@@ -7,20 +7,25 @@ use App\Http\Requests\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Jobs\SendEmail;
 use App\Models\User;
+use App\Repositories\Interfaces\UserRepositoryInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 
 class AuthController extends  Controller{
 
+    public function __construct(private UserRepositoryInterface $UserRepository)
+    {}
+
     public function register(RegisterRequest $request){
         $validate = $request->validated();
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password)
+        $user = $this->UserRepository->create([
+            'name'=> $request->name,
+            'email'=> $request->email,
+            'password'=> Hash::make($request->password)
         ]);
+
         $user->assignRole('user');
 
         SendEmail::dispatch($user);

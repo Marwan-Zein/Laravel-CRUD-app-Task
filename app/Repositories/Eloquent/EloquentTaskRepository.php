@@ -4,6 +4,7 @@ namespace App\Repositories\Eloquent;
 
 use App\Models\Task;
 use App\Repositories\Interfaces\TaskRepositoryInterface;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class EloquentTaskRepository implements TaskRepositoryInterface
 {
@@ -19,9 +20,11 @@ class EloquentTaskRepository implements TaskRepositoryInterface
         return Task::where('user_id', $userId)->find($id);
     }
 
-    public function FindAll(int $userId): array
+    public function FindAll(int $userId,int $perPage=10): LengthAwarePaginator
     {
-        return Task::where('user_id', $userId)->get()->all();
+        // return Task::where('user_id', $userId)->get()->all();
+        return Task::where('user_id',$userId)
+            ->paginate($perPage);
     }
 
     public function UpdateById(int $userId, array $data, int $id): ?Task

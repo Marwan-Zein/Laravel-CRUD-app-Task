@@ -36,7 +36,10 @@ class TaskController extends Controller
 
     public function index(Request $request)
     {
-        $tasks = $this->tasksRepository->FindAll($request->user()->id);
+        $tasks = $this->tasksRepository->FindAll(
+            $request->user()->id,
+            $request->query('per_page',10)
+        );
 
         if(!$tasks){
             return response()->json([
