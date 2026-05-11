@@ -39,7 +39,14 @@ class TestTaskRespository implements TaskRepositoryInterface{
 
     #[Override]
     public function FindAll(int $userId , int $page_size=10): LengthAwarePaginator {
-        return $this->tasks[$userId];
+        $tasks = array_values($this->tasks[$userId] ?? []);
+
+        return new LengthAwarePaginator(
+            array_slice($tasks, 0, $page_size),
+            count($tasks),
+            $page_size,
+            1
+        );
     }
 
     #[Override]
@@ -49,7 +56,7 @@ class TestTaskRespository implements TaskRepositoryInterface{
             return null;
         }
 
-        $task->fillable($taskData);
+        $task->fill($taskData);
         return $task;
     }
 
