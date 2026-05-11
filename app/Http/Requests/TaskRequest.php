@@ -35,7 +35,7 @@ class TaskRequest extends FormRequest
     {
         $allowed = ['title','description'];
 
-        $extra = array_diff(array_keys($this->all()),$allowed);
+        $extra = array_diff(array_keys($this->json()->all()),$allowed);
         if(!empty($extra)){
             throw new HttpResponseException(response()->json([
                 'message'=>'Invalid Fields Provided',

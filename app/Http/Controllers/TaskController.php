@@ -2,10 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ApiCreateException;
+use App\Exceptions\ApiDeleteException;
+use App\Exceptions\ApiNotFoundException;
+use App\Exceptions\ApiUpdateException;
+use App\Exceptions\DeleteTaskException;
+use App\Exceptions\TaskCreateException;
+use App\Exceptions\TaskUpdateException;
+use App\Http\Requests\PaginationRequest;
 use App\Http\Requests\TaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
+use App\Http\Resources\PaginationResource;
 use App\Http\Resources\TaskResource;
 use App\Repositories\Interfaces\TaskRepositoryInterface;
+use Exception;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 
 class TaskController extends Controller
@@ -17,128 +28,160 @@ class TaskController extends Controller
 
     public function store(TaskRequest $request)
     {
+        try{
+            $validate = $request->validated();
 
-        $validate = $request->validated();
+            $task = $this->tasksRepository->create(
+                $request->user()->id,
+                $request
+            );
 
-        $task = $this->tasksRepository->create(
-            $request->user()->id,
-            [
-                'title' => $request->title,
-                'description' => $request->description,
-            ]
-        );
-
-        return response()->json([
-            'status' => true,
-            'data' => new TaskResource($task)
-        ],201);
+            return response()->json([
+                'status' => 'accepted',
+                'data' => new TaskResource($task)
+            ],201);
+        }
+        catch(ApiCreateException $e){
+            return response()->json([
+                'status'=>'failed',
+                'message'=>$e->getMessage()
+            ]);
+        }
+        catch(ModelNotFoundException $e){
+            return response()->json([
+                'status'=>'failed',
+                'message'=>$e->getMessage()
+            ]);
+        }
     }
 
-    public function index(Request $request)
+   public function index(PaginationRequest $paginationData)
     {
-        $tasks = $this->tasksRepository->FindAll(
-            $request->user()->id,
-            $request->query('per_page',10)
-        );
+        try {
+            $tasks = $this->tasksRepository->FindAll(
+                auth()->id(),
+                $paginationData
+            );
 
-        if(!$tasks){
             return response()->json([
-                'status'=>false,
-                'message'=>'tasks not found'
-            ],404);
+                'status' => 'success',
+                'tasks'  => $tasks
+            ]);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'status'  => 'failed',
+                'message' => $e->getMessage()
+            ], 404);
+        } catch (Exception $e) {
+            return response()->json([
+                'status'  => 'failed',
+                'message' => $e->getMessage()
+            ], 500);
         }
-        return response()->json([
-            'status' => true,
-            'tasks' => $tasks
-        ]);
     }
 
     public function show($id, Request $request)
     {
-        $task = $this->tasksRepository->FindById($request->user()->id, $id);
 
-        if (!$task) {
+        try{
+            $task = $this->tasksRepository->FindById($id);
+
             return response()->json([
-                'status' => false,
-                'message' => 'Task not found'
+                'status' => 'Successed',
+                'task' => new TaskResource($task)
+            ]);
+        }
+        catch(ModelNotFoundException $e){
+            return response()->json([
+                'status' => 'failed',
+                'message' => $e->getMessage()
             ], 404);
         }
 
-        return response()->json([
-            'status' => true,
-            'task' => new TaskResource($task)
-        ]);
+
     }
 
     public function update(UpdateTaskRequest $request, $id)
     {
-        $validate = $request->validated();
+        try {
+            $updatedTask = $this->tasksRepository->UpdateById(
+                $request,
+                (int) $id
+            );
 
-        $task = $this->tasksRepository->FindById($request->user()->id, $id);
-
-        if (!$task) {
             return response()->json([
-                'status' => false,
-                'message' => 'Task not found'
+                'status' => 'success',
+                'task'   => new TaskResource($updatedTask)
+            ]);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'status'  => 'failed',
+                'message' => $e->getMessage()
             ], 404);
+        } catch (ApiUpdateException $e) {
+            return response()->json([
+                'status'  => 'failed',
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        $updatedTask = $this->tasksRepository->UpdateById(
-            $request->user()->id,
-            $request->only('title', 'description'),
-            $id
-        );
-
-        return response()->json([
-            'status' => true,
-            'task' => new TaskResource($updatedTask)
-        ]);
     }
-
     public function destroy($id, Request $request)
     {
-        $task = $this->tasksRepository->FindById($request->user()->id, $id);
 
-        if (!$task) {
+        try{
+            $this->tasksRepository->DeleteById($id);
+
             return response()->json([
-                'status' => false,
-                'message' => 'Task not found'
+                'status' => 'successed',
+                'message' => 'Task deleted'
+            ]);
+
+        }
+        catch(ApiNotFoundException $e){
+            return response()->json([
+                'status' => 'failed',
+                'message' => $e->getMessage()
             ], 404);
         }
-
-        $this->tasksRepository->DeleteById($request->user()->id, $id);
-
-        return response()->json([
-            'status' => true,
-            'message' => 'Task deleted'
-        ]);
+        catch(ApiDeleteException $e){
+            return response()->json([
+                'status'=>'failed',
+                'message'=> $e->getMessage()
+            ],500);
+        }
     }
 
-    public function markComplete($id, Request $request)
+    public function markComplete($id, UpdateTaskRequest $request)
     {
-        $task = $this->tasksRepository->FindById($request->user()->id, $id);
+        try{
+            $task = $this->tasksRepository->FindById($id);
 
-        if (!$task) {
+            $updatedTask = $this->tasksRepository->UpdateById(
+                $request,
+                $id
+            );
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Task marked as completed',
+                'task' => new TaskResource($updatedTask)
+            ]);
+
+
+        }
+        catch(ModelNotFoundException $e){
             return response()->json([
                 'status' => false,
                 'message' => 'Task Not found'
             ], 404);
+
         }
-
-        $updatedTask = $this->tasksRepository->UpdateById(
-            $request->user()->id,
-            [
-                'status' => 'compeleted'
-            ],
-            $id
-        );
-
-        return response()->json([
-            'status' => true,
-            'message' => 'Task marked as completed',
-            'task' => new TaskResource($updatedTask)
-        ]);
-
+        catch(ApiUpdateException $e){
+            return response()->json([
+                'status'=>'failed',
+                'message'=>$e->getMessage()
+            ],500);
+        }
     }
 
 }
